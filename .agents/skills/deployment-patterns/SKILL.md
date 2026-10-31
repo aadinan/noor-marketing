@@ -426,3 +426,45 @@ Before any production deployment:
 - [ ] Database migration tested against production-sized data
 - [ ] Runbook for common failure scenarios
 - [ ] On-call rotation and escalation path defined
+
+---
+
+## Flutter / Android APK Build Patterns
+
+> Captured from Noor Marketing ERP session, November 2026.
+
+### Flutter Build Command Sequence (PowerShell)
+
+```powershell
+cd <project_root>/inventory_mobile
+
+# 1. Resolve dependencies (ALWAYS first — surfaces conflicts before wasting Gradle time)
+flutter pub get 2>&1
+
+# 2. Static analysis — must be zero issues before building
+flutter analyze 2>&1
+
+# 3a. Debug APK
+flutter build apk --debug 2>&1
+# Output: build\app\outputs\flutter-apk\app-debug.apk
+
+# 3b. Release APK (obfuscated)
+flutter build apk --release --obfuscate --split-debug-info=build/debug-info
+# Output: build\app\outputs\flutter-apk\app-release.apk
+```
+
+> **Note:** First Gradle build downloads ~500 MB from `dl.google.com` and
+> `repo.maven.apache.org`. Requires stable internet. Subsequent builds use cache.
+
+### Flutter/Android Build Troubleshooting
+
+| Error Signature | Root Cause | Verified Fix |
+|:---|:---|:---|
+| `Namespace not specified` in `<pkg>/android/build.gradle` | Old package version (pre-AGP namespace requirement). AGP 8+ requires `namespace` in every Android module. | Upgrade the offending package to a version that declares `namespace`, or remove it and replace with a namespace-safe alternative. |
+| `Could not find package flutter_web_plugins in the Flutter SDK` | Stripped/partial Flutter SDK missing the web plugins component. Any package that added web support post-2021 triggers this transitively. | Pin to older version without web support, or replace with `dart:io` / built-in Flutter equivalent. See flutter-mobile skill. |
+| `Could not GET 'https://dl.google.com/...'` during `assembleDebug` | Machine has no internet during first Gradle toolchain download. Cache is empty. | Run again with stable network. Build cache persists — only first build for each AGP version requires download. |
+| `flutter analyze` clean but `flutter build apk` fails | Android/Gradle configuration error — not a Dart code error. | Read Gradle output directly. Common causes: namespace, network, AGP/Kotlin version mismatch. Fix is in Android configs. |
+| PowerShell `&&` not recognized | PowerShell uses `;` not `&&` as statement separator. `&&` is Bash syntax. | Use `;` or `if ($LASTEXITCODE -eq 0) { ... }` for conditional chaining in PowerShell. |
+
+### Changelog
+- **2026-11-01**: Added Flutter/Android build section from Noor Marketing ERP project.
